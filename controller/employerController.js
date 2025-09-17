@@ -1,11 +1,13 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import Employer from "../models/employer.js";
+import crypto from 'crypto';
+import { sendMail } from '../config/sendMail.js';
 
 export const addEmployer = async (req, res, next) => {
-    const {username, password} = req.body;
+    const {username, password, email} = req.body;
 
-    if (!username || !password) {
+    if (!username || !password || !email) {
         const error = new Error('all fields are required');
         error.statusCode = 400;
         return next(error);
@@ -33,15 +35,15 @@ export const addEmployer = async (req, res, next) => {
 }
 
 export const employerLogin = async (req, res, next) => {
-    const {username, password} = req.body;
-    if(!username || !password) {
-        const error = new Error('username or password are required');
+    const { email, password} = req.body;
+    if(!email || !password  ) {
+        const error = new Error('email or password are required');
         error.statusCode = 400;
         return next(error);
     }
 
     try {
-        const employer = await Employer.findOne({username});
+        const employer = await Employer.findOne({email});
 
         if(!employer) {
             const error = new Error('Incorrect username or password');
@@ -122,3 +124,81 @@ export const employerLogout = async (req, res, next) => {
         next(error);
     }
 }
+
+
+export const employerForgotPassword = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+
+        const employer = await Employer.findOne({ email });
+
+        if (!employer) {
+            const error = new Error('We could not find an employer with the given email');
+            error.statusCode = 404;
+            return next(error);
+        }
+
+        const resetToken = employer.generatePasswordResetToken();
+        await employer.save({ validateBeforeSave: false });
+
+        const resetUrl = `${req.protocol}://localhost:5173/eresetpassword/${resetToken}`;
+
+        const subject = `There has been a password reset request, follow the link provided`;
+
+        const html = `<p> This is the reset link </p>
+                    <a href="${resetUrl}"
+                    target="_blank"> Follow Link </a>`
+
+        try {
+            sendMail({
+                to: employer.email,
+                subject,
+                html,
+            });
+
+            res.status(200).json({
+                success: true,
+                message: 'Link has been sent to your email successfully'
+            })
+        } catch (error) {
+           employer.resetPasswordToken = undefined;
+           employer.resetPasswordTokenExpire = undefined;
+           employer.save({ validateBeforeSave: true});
+           next(error);
+        }
+
+    } catch (error) {
+      next(error);
+    }
+};
+
+
+export const employerResetPassword = async (req, res, next) => {
+    try {
+        const {resetPasswordToken} = req.params;
+        const hashed = crypto.createHash('sha256').update(resetPasswordToken).digest('hex');
+
+        const employer = await Employer.findOne({resetPasswordToken: hashed, resetPasswordTokenExpire: {$gt: Date.now()}});
+
+        if(!employer) {
+            const error = new Error('The link or token has expired');
+            error.statusCode = 400;
+            return next(error);
+        }
+
+        employer.password = req.body.password;
+        employer.resetPasswordToken = undefined;
+        employer.resetPasswordTokenExpire = undefined;
+
+        await employer.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'password reset successful'
+        })
+    } catch (error) {
+        next(error);
+    }
+}
+
+
