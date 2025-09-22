@@ -36,12 +36,12 @@ const upload = multer({
 
 // Schemas
 const profileUpdateSchema = Joi.object({
-    firstName: Joi.string().trim(),
-    lastName: Joi.string().trim(),
-    phone: Joi.string().trim(),
-    location: Joi.string().trim(),
+    firstName: Joi.string().trim().allow(''),
+    lastName: Joi.string().trim().allow(''),
+    phone: Joi.string().trim().allow(''),
+    location: Joi.string().trim().allow(''),
     skills: Joi.array().items(Joi.string().trim()),
-    bio: Joi.string().max(1000),
+    bio: Joi.string().max(1000).allow(''),
     socialLinks: Joi.object({
         linkedin: Joi.string().uri().allow(''),
         github: Joi.string().uri().allow(''),
@@ -53,10 +53,10 @@ const profileUpdateSchema = Joi.object({
         salaryRange: Joi.object({
             min: Joi.number().min(0),
             max: Joi.number().min(0),
-            currency: Joi.string().default('GHS')
+            currency: Joi.string().default('GHS').allow('')
         }),
-        preferredLocations: Joi.array().items(Joi.string()),
-        availability: Joi.string().valid('immediate', '2-weeks', '1-month', 'negotiable')
+        preferredLocations: Joi.array().items(Joi.string().allow('')),
+        availability: Joi.string().valid('immediate', '2-weeks', '1-month', 'negotiable').allow('')
     })
 });
 const experienceSchema = Joi.object({

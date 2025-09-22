@@ -35,7 +35,6 @@ import employerRoutes from './routes/employer.js';
 import jobRoutes from './routes/jobs.js';
 import applicationRoutes from './routes/applications.js';
 import adminRoute from './routes/adminRoute.js';
-import employerRoute from './routes/employerRoute.js';
 
 dotenv.config();
 
@@ -103,7 +102,6 @@ app.use('/api/employer', employerRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/auth', adminRoute);
-app.use('/auth', employerRoute);
 
 // Health check
 app.get('/api/health', (req, res) => {

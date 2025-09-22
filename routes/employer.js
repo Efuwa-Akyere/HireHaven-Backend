@@ -30,21 +30,21 @@ const upload = multer({
 
 // Validation schemas
 const companyUpdateSchema = Joi.object({
-    companyName: Joi.string().trim(),
-    industry: Joi.string().trim(),
+    companyName: Joi.string().trim().allow(''),
+    industry: Joi.string().trim().allow(''),
     companySize: Joi.string().valid('1-10', '11-50', '51-100', '101-500', '501-1000', '1000+'),
     foundedYear: Joi.number().min(1800).max(new Date().getFullYear()),
     website: Joi.string().uri().allow(''),
-    phone: Joi.string().trim(),
+    phone: Joi.string().trim().allow(''),
     location: Joi.object({
         address: Joi.string().allow(''),
         city: Joi.string().allow(''),
         state: Joi.string().allow(''),
         country: Joi.string().default('Ghana')
     }),
-    description: Joi.string().max(2000),
-    culture: Joi.array().items(Joi.string()),
-    benefits: Joi.array().items(Joi.string()),
+    description: Joi.string().max(2000).allow(''),
+    culture: Joi.array().items(Joi.string().allow('')),
+    benefits: Joi.array().items(Joi.string().allow('')),
     socialLinks: Joi.object({
         linkedin: Joi.string().uri().allow(''),
         twitter: Joi.string().uri().allow(''),

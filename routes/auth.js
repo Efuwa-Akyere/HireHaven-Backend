@@ -20,6 +20,7 @@ const registerSchema = Joi.object({
     userType: Joi.string().valid('jobseeker', 'employer').required(),
     firstName: Joi.string().when('userType', { is: 'jobseeker', then: Joi.required() }),
     lastName: Joi.string().when('userType', { is: 'jobseeker', then: Joi.required() }),
+    phone: Joi.string().when('userType', { is: 'jobseeker', then: Joi.optional() }),
     companyName: Joi.string().when('userType', { is: 'employer', then: Joi.required() }),
     industry: Joi.string().when('userType', { is: 'employer', then: Joi.required() }),
     companySize: Joi.string().when('userType', { 
@@ -42,13 +43,29 @@ const jobseekerRegisterSchema = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
     firstName: Joi.string().required(),
-    lastName: Joi.string().required()
+    lastName: Joi.string().required(),
+    phone: Joi.string().optional()
 });
 
 const jobseekerLoginSchema = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().required()
 });
+
+// Employer convenience schemas
+const employerRegisterSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).required(),
+    companyName: Joi.string().required(),
+    industry: Joi.string().required(),
+    companySize: Joi.string().valid('1-10', '11-50', '51-100', '101-500', '501-1000', '1000+').required()
+});
+
+const employerLoginSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required()
+});
+
 
 // Rate limiting
 const authRateLimit = createRateLimit(15 * 60 * 1000, 5); // 5 attempts per 15 minutes
@@ -60,7 +77,7 @@ router.post('/register',
     authRateLimit,
     validateRequest(registerSchema),
     asyncHandler(async (req, res) => {
-        const { email, password, userType, firstName, lastName, companyName, industry, companySize } = req.body;
+        const { email, password, userType, firstName, lastName, phone, companyName, industry, companySize } = req.body;
 
         // Check if user already exists
         const existingUser = await User.findOne({ email });
@@ -83,7 +100,8 @@ router.post('/register',
             profile = new JobSeeker({
                 userId: user._id,
                 firstName,
-                lastName
+                lastName,
+                phone: phone || null
             });
         } else {
             profile = new Company({
@@ -130,7 +148,7 @@ router.post('/jobseeker/signup',
     authRateLimit,
     validateRequest(jobseekerRegisterSchema),
     asyncHandler(async (req, res) => {
-        const { email, password, firstName, lastName } = req.body;
+        const { email, password, firstName, lastName, phone } = req.body;
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -140,7 +158,12 @@ router.post('/jobseeker/signup',
         const user = new User({ email, password, userType: 'jobseeker' });
         await user.save();
 
-        const profile = new JobSeeker({ userId: user._id, firstName, lastName });
+        const profile = new JobSeeker({ 
+            userId: user._id, 
+            firstName, 
+            lastName,
+            phone: phone || null
+        });
         await profile.save();
 
         const token = generateToken(user._id, user.userType);
