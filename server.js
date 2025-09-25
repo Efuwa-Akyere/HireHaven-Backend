@@ -101,7 +101,7 @@ app.use('/api/jobseeker', jobSeekerRoutes);
 app.use('/api/employer', employerRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
-app.use('/auth', adminRoute);
+app.use('/api/auth', adminRoute);
 
 // Health check
 app.get('/api/health', (req, res) => {
