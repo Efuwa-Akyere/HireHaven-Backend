@@ -36,3 +36,4 @@ employerSchema.post('save', async function() {
 const Employer = model('Employer', employerSchema);
 
 export default Employer;
+

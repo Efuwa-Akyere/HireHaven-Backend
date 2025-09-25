@@ -1,3 +1,4 @@
+import Employer from '../models/employer.js';
 import * as svc from '../services/employerService.js';
 
 // Company Profile Management
@@ -140,3 +141,5 @@ export const getCandidateProfile = async (req, res) => {
     
     res.json({ success: true, data: result });
 };
+
+// export default Employer
