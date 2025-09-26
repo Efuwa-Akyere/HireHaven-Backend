@@ -1,204 +1,145 @@
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import Employer from "../models/employer.js";
-import crypto from 'crypto';
-import { sendMail } from '../config/sendMail.js';
+import Employer from '../models/employer.js';
+import * as svc from '../services/employerService.js';
 
-export const addEmployer = async (req, res, next) => {
-    const {username, password, email} = req.body;
-
-    if (!username || !password || !email) {
-        const error = new Error('all fields are required');
-        error.statusCode = 400;
-        return next(error);
-    }
-
-    try {
-       const employer = await Employer.create(req.body);
-       
-       const token = jwt.sign({id: employer._id}, process.env.JWT_SECRET, {expiresIn: '1d'});
-
-       res.cookie('jwt', token,{
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        secure: process.env.NODE_ENV === 'production',
-       });
-
-       res.status(201).json({
-        success: true,
-        statusCode: 200,
-        employer
-       })
-    } catch (error) {
-        next(error);
-    }
-}
-
-export const employerLogin = async (req, res, next) => {
-    const { email, password} = req.body;
-    if(!email || !password  ) {
-        const error = new Error('email or password are required');
-        error.statusCode = 400;
-        return next(error);
-    }
-
-    try {
-        const employer = await Employer.findOne({email});
-
-        if(!employer) {
-            const error = new Error('Incorrect username or password');
-            error.statusCode = 401;
-            return next(error);
-        }
-
-        const isMatched = await bcrypt.compare(password, employer.password)
-
-        if(!isMatched) {
-            const error = new Error('Incorrect or password');
-            error.statusCode = 400;
-            return next(error);
-        }
-
-        const token = jwt.sign({id: employer._id}, process.env.JWT_SECRET, {expiresIn: '1d'});
-
-        res.cookie('jwt',token, {
-            httpOnly: true,
-            maxAge: 24 * 60 * 60 * 1000,
-            secure: process.env.NODE_ENV === 'production',
-        });
-
-        res.status(200).json({
-            success:true,
-            statusCode: 200,
-            employer
-        });
-    } catch (error) {
-        next(error);
-    }
-}
-
-export const employerInfo = async (req, res, next) => {
-    const token = req.cookies.jwt;
-
-    try {
-        if(!token) {
-            const error = new Error('You are not logged in');
-            error.status = 404;
-            return next(error);
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const employer = await Employer.findById(decoded.id).select('-password');
-
-        if(!employer) {
-            const error = new Error('The employer with the given token does not exist');
-            error.statusCode = 401;
-            return next(error);
-        }
-
-        res.status(200).json({
-            success: true,
-            statusCode: 200,
-            employer
-        })
-    } catch (error) {
-        next(error);
-    }
-}
-
-
-export const employerLogout = async (req, res, next) => {
-    try {
-        res.cookie('jwt', '', {
-            httpOnly: true,
-            maxAge: 0,
-            secure: process.env.NODE_ENV === 'production',
-        });
-
-        res.status(200).json({
-            success: true,
-            statusCode: 200,
-            
-        })
-    } catch (error) {
-        next(error);
-    }
-}
-
-
-export const employerForgotPassword = async (req, res, next) => {
-    try {
-        const { email } = req.body;
-
-        const employer = await Employer.findOne({ email });
-
-        if (!employer) {
-            const error = new Error('We could not find an employer with the given email');
-            error.statusCode = 404;
-            return next(error);
-        }
-
-        const resetToken = employer.generatePasswordResetToken();
-        await employer.save({ validateBeforeSave: false });
-
-        const resetUrl = `${req.protocol}://localhost:5173/eresetpassword/${resetToken}`;
-
-        const subject = `There has been a password reset request, follow the link provided`;
-
-        const html = `<p> This is the reset link </p>
-                    <a href="${resetUrl}"
-                    target="_blank"> Follow Link </a>`
-
-        try {
-            sendMail({
-                to: employer.email,
-                subject,
-                html,
-            });
-
-            res.status(200).json({
-                success: true,
-                message: 'Link has been sent to your email successfully'
-            })
-        } catch (error) {
-           employer.resetPasswordToken = undefined;
-           employer.resetPasswordTokenExpire = undefined;
-           employer.save({ validateBeforeSave: true});
-           next(error);
-        }
-
-    } catch (error) {
-      next(error);
-    }
+// Company Profile Management
+export const getProfile = async (req, res) => {
+    const company = await svc.getCompanyProfile(req.user.id);
+    if (!company) return res.status(404).json({ message: 'Company profile not found' });
+    res.json({ success: true, data: company });
 };
 
+export const updateProfile = async (req, res) => {
+    const updated = await svc.updateCompanyProfile(req.user.id, req.body);
+    if (!updated) return res.status(404).json({ message: 'Company profile not found' });
+    res.json({ success: true, message: 'Company profile updated successfully', data: updated });
+};
 
-export const employerResetPassword = async (req, res, next) => {
-    try {
-        const {resetPasswordToken} = req.params;
-        const hashed = crypto.createHash('sha256').update(resetPasswordToken).digest('hex');
+export const uploadLogo = async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No logo file provided' });
+    
+    const updated = await svc.uploadCompanyLogo(req.user.id, req.file);
+    if (!updated) return res.status(404).json({ message: 'Company profile not found' });
+    
+    res.json({ 
+        success: true, 
+        message: 'Logo uploaded successfully', 
+        data: { logo: updated.logo } 
+    });
+};
 
-        const employer = await Employer.findOne({resetPasswordToken: hashed, resetPasswordTokenExpire: {$gt: Date.now()}});
+// Office Management
+export const addOffice = async (req, res) => {
+    const result = await svc.addOffice(req.user.id, req.body);
+    if (result?.notFound === 'company') return res.status(404).json({ message: 'Company profile not found' });
+    
+    res.status(201).json({ 
+        success: true, 
+        message: 'Office added successfully', 
+        data: result 
+    });
+};
 
-        if(!employer) {
-            const error = new Error('The link or token has expired');
-            error.statusCode = 400;
-            return next(error);
-        }
+export const updateOffice = async (req, res) => {
+    const result = await svc.updateOffice(req.user.id, req.params.id, req.body);
+    if (result?.notFound === 'company') return res.status(404).json({ message: 'Company profile not found' });
+    if (result?.notFound === 'office') return res.status(404).json({ message: 'Office not found' });
+    
+    res.json({ 
+        success: true, 
+        message: 'Office updated successfully', 
+        data: result 
+    });
+};
 
-        employer.password = req.body.password;
-        employer.resetPasswordToken = undefined;
-        employer.resetPasswordTokenExpire = undefined;
+export const deleteOffice = async (req, res) => {
+    const result = await svc.deleteOffice(req.user.id, req.params.id);
+    if (result?.notFound === 'company') return res.status(404).json({ message: 'Company profile not found' });
+    if (result?.notFound === 'office') return res.status(404).json({ message: 'Office not found' });
+    
+    res.json({ success: true, message: 'Office deleted successfully' });
+};
 
-        await employer.save();
+// Job Management
+export const getJobs = async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const { status } = req.query;
+    
+    const result = await svc.getCompanyJobs(req.user.id, { page, limit, status });
+    if (!result) return res.status(404).json({ message: 'Company profile not found' });
+    
+    res.json({ 
+        success: true, 
+        data: result.jobs, 
+        pagination: { 
+            page, 
+            limit, 
+            total: result.total, 
+            pages: Math.ceil(result.total / limit) 
+        } 
+    });
+};
 
-        res.status(200).json({
-            success: true,
-            message: 'password reset successful'
-        })
-    } catch (error) {
-        next(error);
-    }
-}
+// Application Management
+export const getApplications = async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const { status, jobId } = req.query;
+    
+    const result = await svc.getCompanyApplications(req.user.id, { page, limit, status, jobId });
+    if (!result) return res.status(404).json({ message: 'Company profile not found' });
+    
+    res.json({ 
+        success: true, 
+        data: result.applications, 
+        pagination: { 
+            page, 
+            limit, 
+            total: result.total, 
+            pages: Math.ceil(result.total / limit) 
+        } 
+    });
+};
 
+export const updateApplicationStatus = async (req, res) => {
+    const result = await svc.updateApplicationStatus(req.user.id, req.params.id, req.body);
+    if (result?.notFound === 'company') return res.status(404).json({ message: 'Company profile not found' });
+    if (result?.notFound === 'application') return res.status(404).json({ message: 'Application not found' });
+    
+    res.json({ success: true, message: 'Application status updated successfully' });
+};
 
+export const rateCandidate = async (req, res) => {
+    const result = await svc.rateCandidate(req.user.id, req.params.id, req.body);
+    if (result?.notFound === 'company') return res.status(404).json({ message: 'Company profile not found' });
+    if (result?.notFound === 'application') return res.status(404).json({ message: 'Application not found' });
+    
+    res.json({ success: true, message: 'Candidate rated successfully' });
+};
+
+// Dashboard & Analytics
+export const getDashboardStats = async (req, res) => {
+    const stats = await svc.getDashboardStats(req.user.id);
+    if (!stats) return res.status(404).json({ message: 'Company profile not found' });
+    
+    res.json({ success: true, data: stats });
+};
+
+export const getAnalytics = async (req, res) => {
+    const analytics = await svc.getDetailedAnalytics(req.user.id);
+    if (!analytics) return res.status(404).json({ message: 'Company profile not found' });
+    
+    res.json({ success: true, data: analytics });
+};
+
+// Candidate Management
+export const getCandidateProfile = async (req, res) => {
+    const result = await svc.getCandidateProfile(req.user.id, req.params.id);
+    if (result?.notFound === 'company') return res.status(404).json({ message: 'Company profile not found' });
+    if (result?.notFound === 'application') return res.status(403).json({ message: 'Access denied' });
+    if (result?.notFound === 'candidate') return res.status(404).json({ message: 'Candidate not found' });
+    
+    res.json({ success: true, data: result });
+};
+
+// export default Employer
