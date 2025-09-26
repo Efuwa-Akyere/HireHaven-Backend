@@ -3,6 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import session from 'express-session';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -16,6 +17,7 @@ import connectDb from './config/db.js';
 // Middlewares
 import { errorHandler } from './middleware/errorHandling.js';
 import { notFound } from './middleware/notFound.js';
+import passport from './config/adminGooglePassportStrategy.js'
 import {
   generateToken,
   authenticateToken,
@@ -40,6 +42,19 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 7000;
+
+app.use(
+    session({
+        secret: 'HireHaven-session-secret',
+        resave: false,
+        cookie: {
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000
+        }
+    })
+)
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Database connection
 connectDb();
@@ -67,6 +82,10 @@ if (process.env.NODE_ENV === 'development') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true,
+}));
 
 // File upload setup
 // Ensure upload folders exist

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { model, Schema } from "mongoose";
 import crypto from 'crypto';
+import { type } from "os";
 
 const adminSchema = new Schema({
     username:{
@@ -12,7 +13,7 @@ const adminSchema = new Schema({
     password:{
         type: String,
         minLength:[5, 'Password must be more than 4 characters'],
-        required: true,
+        //required: true,
     },
     email: {
         type: String,
@@ -29,6 +30,21 @@ const adminSchema = new Schema({
         type: String,
         enum: [ 'admin']
     },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true,
+    },
+    linkedinId: {
+        type: String,
+        unique: true,
+        sparse: true,
+    },
+    authProvider: {
+        type: String,
+        enum: ['local', 'google', 'linkedin'],
+        default: 'local',
+    },
     resetPasswordToken: String,
     resetPasswordTokenExpire: Date,
     
@@ -38,6 +54,9 @@ const adminSchema = new Schema({
 
 adminSchema.pre('save', async function (next) {
     if(!this.isModified('password')) return next();
+
+    if(!this.isModified('password') || !this.password) next()
+
     this.password = await bcrypt.hash(this.password, 10);
     next();
 });

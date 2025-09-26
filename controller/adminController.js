@@ -60,13 +60,23 @@ export const adminLogin = async (req, res, next) => {
             return next(error);
         }
 
-        const token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        const token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET, { expiresIn: '1m' });
+
+        const refreshToken = jwt.sign({ id: admin._id },
+            process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' }
+        )
 
         res.cookie('jwt', token, {
             httpOnly: true,
-            maxAge: 24 * 60 * 60 * 1000,
+            maxAge: 1 * 60 * 1000,
             secure: process.env.NODE_ENV === 'production',
         });
+
+        res.cookie('refreshJwt', refreshToken, {
+            maxAge: 7 * 24 * 60 * 60 * 1000,//7days
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+        })
 
         res.status(200).json({
             success: true,
@@ -163,25 +173,25 @@ export const adminForgotPassword = async (req, res, next) => {
                 message: 'Link has been sent to your email successfully'
             })
         } catch (error) {
-           admin.resetPasswordToken = undefined;
-           admin.resetPasswordTokenExpire = undefined;
-           admin.save({ validateBeforeSave: true});
-           next(error);
+            admin.resetPasswordToken = undefined;
+            admin.resetPasswordTokenExpire = undefined;
+            admin.save({ validateBeforeSave: true });
+            next(error);
         }
 
     } catch (error) {
-      next(error);
+        next(error);
     }
 }
 
 export const adminResetPassword = async (req, res, next) => {
     try {
-        const {resetPasswordToken} = req.params;
+        const { resetPasswordToken } = req.params;
         const hashed = crypto.createHash('sha256').update(resetPasswordToken).digest('hex');
 
-        const admin = await Admin.findOne({resetPasswordToken: hashed, resetPasswordTokenExpire: {$gt: Date.now()}});
+        const admin = await Admin.findOne({ resetPasswordToken: hashed, resetPasswordTokenExpire: { $gt: Date.now() } });
 
-        if(!admin) {
+        if (!admin) {
             const error = new Error('The link or token has expired');
             error.statusCode = 400;
             return next(error);
@@ -201,3 +211,102 @@ export const adminResetPassword = async (req, res, next) => {
         next(error);
     }
 }
+
+export const googleAuthSuccess = async (req, res) => {
+    try {
+        const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, {
+            expiresIn: '1m'
+        });
+
+        const refreshToken = jwt.sign({ id: req.user._id }, process.env.JWT_REFRESH_SECRET, {
+            expiresIn: '1d'
+        });
+
+        res.cookie('jwt', token, {
+            maxAge: 1 * 60 * 1000,//1days
+            httpOnly: true,
+
+        });
+
+        res.cookie('refreshJwt', refreshToken, {
+            maxAge: 1 * 24 * 60 * 1000,//1days
+            httpOnly: true,
+
+        });
+
+        res.redirect(`${process.env.CLIENT_URL}/rootLayout`)
+    } catch (error) {
+        console.log(error)
+        res.redirect(`${process.env.CLIENT_URL}/alogin`)
+    }
+};
+
+export const googleAuthFailure = (req, res, next) => {
+    res.redirect(`${process.env.CLIENT_URL}/auth/failure`)
+};
+
+export const isAuthenticated = (req, res, next) => {
+    try {
+        if (isAuthenticated()) {
+            return next();
+        }
+
+        const error = new Error('You need to be logged in to access this resource');
+        error.statusCode = 401;
+        next(error);
+    } catch (error) {
+        console.log(error)
+        next();
+    }
+}
+
+
+export const linkedinAuthSuccess = async (req, res) => {
+    try {
+        const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, {
+            expiresIn: '1m'
+        });
+
+        const refreshToken = jwt.sign({ id: req.user._id }, process.env.JWT_REFRESH_SECRET, {
+            expiresIn: '1d'
+        });
+
+        res.cookie('jwt', token, {
+            maxAge: 1 * 60 * 1000,//1days
+            httpOnly: true,
+
+        });
+
+        res.cookie('refreshJwt', refreshToken, {
+            maxAge: 1 * 24 * 60 * 1000,//1days
+            httpOnly: true,
+
+        });
+
+        res.redirect(`${process.env.CLIENT_URL}/rootLayout`)
+    } catch (error) {
+        console.log(error)
+        res.redirect(`${process.env.CLIENT_URL}/alogin`)
+    }
+};
+
+
+export const linkedinAuthFailure = (req, res, next) => {
+    res.redirect(`${process.env.CLIENT_URL}/alogin`)
+};
+
+export const isLinkedinAuthenticated = (req, res, next) => {
+    try {
+        if (isLinkedinAuthenticated()) {
+            return next();
+        }
+
+        const error = new Error('You need to be logged in to access this resource');
+        error.statusCode = 401;
+        next(error);
+    } catch (error) {
+        console.log(error)
+        next();
+    }
+}
+
